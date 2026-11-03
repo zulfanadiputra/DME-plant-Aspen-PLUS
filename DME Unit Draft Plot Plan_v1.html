@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DME Unit Draft Plot Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Layout idea: drawing-sheet viewport on the left, title-block style panel on the right. Single light theme. */
+  --paper: #f3f5f4;
+  --ink: #1d2a2f;
+  --muted: #5f6f74;
+  --line: #c9d2d0;
+  --accent: #1f6f8b;
+  --warn: #b7791f;
+  --bad: #b83232;
+  --ok: #2f7d4f;
+  --panel: #ffffff;
+  --display: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+  --mono: "IBM Plex Mono", Consolas, monospace;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; background: var(--paper); color: var(--ink); font-family: var(--display); font-size: 14px; }
+.app { display: grid; grid-template-columns: 1fr 360px; height: 100%; }
+#view { position: relative; overflow: hidden; min-height: 320px; }
+#view canvas { display: block; }
+.tag { position: absolute; font: 500 11px var(--mono); color: var(--ink); background: rgba(255,255,255,.82); padding: 1px 4px; border: 1px solid var(--line); border-radius: 2px; pointer-events: none; transform: translate(-50%, -100%); white-space: nowrap; }
+.tag.sel { border-color: var(--accent); color: var(--accent); }
+.tag.implied { border-style: dashed; }
+.tag.person { color: #b35400; border-color: #ff7a00; }
+.toolbar { position: absolute; left: 12px; top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+.hint { position: absolute; left: 12px; bottom: 10px; color: var(--muted); font-size: 12px; background: rgba(243,245,244,.9); padding: 4px 8px; border-radius: 3px; }
+button { font: 500 13px var(--display); border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+button:hover { border-color: var(--accent); color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+aside { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; display: flex; flex-direction: column; }
+.block { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+h1 { font-size: 17px; margin: 0; text-wrap: balance; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0; font-weight: 600; }
+.sub { color: var(--muted); font-size: 12px; margin: 0; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { font: 500 12px var(--mono); padding: 3px 7px; border-radius: 3px; background: var(--paper); border: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.chip.bad { color: #fff; background: var(--bad); border-color: var(--bad); }
+.chip.ok { color: #fff; background: var(--ok); border-color: var(--ok); }
+dl { display: grid; grid-template-columns: 92px 1fr; gap: 4px 8px; margin: 0; font-size: 13px; }
+dt { color: var(--muted); }
+dd { margin: 0; font-variant-numeric: tabular-nums; }
+.gap { display: flex; justify-content: space-between; font: 12px var(--mono); padding: 2px 0; }
+.gap .v.warn { color: var(--warn); } .gap .v.bad { color: var(--bad); font-weight: 600; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+th { text-align: left; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--line); padding: 3px 4px; }
+td { padding: 3px 4px; vertical-align: top; border-bottom: 1px solid #edf0ef; }
+tr.row { cursor: pointer; } tr.row:hover td { background: #eef4f6; } tr.row.sel td { background: #dcebf0; }
+.mono { font-family: var(--mono); white-space: nowrap; }
+.zed { display: inline-flex; align-items: center; gap: 4px; } .zed input { width: 64px; font: 13px var(--mono); padding: 3px 4px; border: 1px solid var(--line); border-radius: 3px; } .zb { padding: 2px 7px; font-size: 11px; }
+.legend { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: 12px; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+textarea { width: 100%; height: 90px; font: 11px var(--mono); border: 1px solid var(--line); border-radius: 4px; padding: 6px; display: none; }
+.note { font-size: 12px; color: var(--muted); margin: 0; }
+@media (max-width: 800px) { .app { grid-template-columns: 1fr; grid-template-rows: 60vh auto; } aside { border-left: 0; border-top: 1px solid var(--line); } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+               "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+</script>
+</head>
+<body>
+<div class="app">
+  <div id="view">
+    <div class="toolbar">
+      <button id="b3d" class="on" type="button">3D view</button>
+      <button id="bplan" type="button">Plan view</button>
+      <button id="brot" type="button">Rotate selected 90°</button>
+      <button id="bup" type="button">Raise 0.5 m</button>
+      <button id="bdn" type="button">Lower 0.5 m</button>
+      <button id="breset" type="button">Reset layout</button>
+    </div>
+    <div class="hint">Drag equipment to move it in plan (0.5 m snap). Shift+drag moves it up or down; PageUp/PageDown also work. Drag the orange person anywhere for scale. Drag empty space to orbit, scroll to zoom, right-drag to pan. Press R to rotate.</div>
+  </div>
+  <aside>
+    <div class="block">
+      <h1>DME Unit 200 — draft plot plan</h1>
+      <p class="sub">Built from DME_complete1.bkp. Screening sizes, first-pass positions. For discussion with civil, piping, mechanical and safety.</p>
+      <div class="chips" id="summary"></div>
+    </div>
+    <div class="block" id="selblock">
+      <h2>Selected</h2>
+      <div id="sel"><p class="note">Click an item in the model or the list below.</p></div>
+    </div>
+    <div class="block">
+      <h2>Legend</h2>
+      <div class="legend">
+        <span><i class="sw" style="background:#4d8cd9"></i>Column / reactor</span>
+        <span><i class="sw" style="background:#f2a633"></i>Drum</span>
+        <span><i class="sw" style="background:#59bf73"></i>Heat exchanger</span>
+        <span><i class="sw" style="background:#cc4d4d"></i>Pump (A/B)</span>
+        <span><i class="sw" style="background:#8c8c8c"></i>Pipe rack</span>
+        <span><i class="sw" style="background:#fff;border:1px dashed #5f6f74"></i>Implied, not in sim</span>
+        <span><i class="sw" style="background:#ff7a00"></i>Person, 1.75 m (drag me)</span>
+      </div>
+      <p class="note">Blue lines are process connections routed via the rack. They show which items must stay close, not pipe sizes.</p>
+    </div>
+    <div class="block">
+      <h2>Equipment</h2>
+      <table><thead><tr><th>Tag</th><th>Service</th><th>D × L, m</th></tr></thead><tbody id="list"></tbody></table>
+    </div>
+    <div class="block">
+      <h2>Take the layout back to CAD</h2>
+      <button id="bcopy" type="button">Copy positions as CSV</button>
+      <textarea id="csvout" readonly aria-label="Positions CSV"></textarea>
+      <p class="note">Paste the x_m, y_m and rot_deg columns into equipment_list.csv, then rerun build_step.py or the FreeCAD macro.</p>
+    </div>
+  </aside>
+</div>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const DATA = {"equipment": [{"tag": "V-201", "service": "Feed vessel", "shape": "hdrum", "D_m": 1.3, "L_m": 3.9, "basis": "10 min liquid holdup at 13.6 m3/h, half full, L/D 3 -> 4.53 m3", "source": "simulation (Flash2)", "x_m": 6.0, "y_m": 7.0, "z_m": 0.8, "rot_deg": 0, "stack_on": ""}, {"tag": "P-201A", "service": "Feed pump", "shape": "box", "D_m": null, "L_m": null, "basis": "13.6 m3/h x 1450 kPa, eta 0.7 -> 7.8 kW shaft", "source": "simulation (Pump, A/B = running/spare)", "x_m": 4.5, "y_m": -2.0, "z_m": 0.0, "rot_deg": 0, "stack_on": ""}, {"tag": "P-201B", "service": "Feed pump", "shape": "box", "D_m": null, "L_m": null, "basis": "13.6 m3/h x 1450 kPa, eta 0.7 -> 7.8 kW shaft", "source": "simulation (Pump, A/B = running/spare)", "x_m": 6.9, "y_m": -2.0, "z_m": 0.0, "rot_deg": 0, "stack_on": ""}, {"tag": "E-202", "service": "Feed/effluent exchanger", "shape": "hx", "D_m": 0.3, "L_m": 3.64, "basis": "Q 578 kW, A 2.8 m2 (sim, U 850, LMTD 245 K)", "source": "simulation (HeatX shortcut)", "x_m": 5.8, "y_m": -6.5, "z_m": 0.8, "rot_deg": 0, "stack_on": ""}, {"tag": "E-201", "service": "Feed vaporiser / superheater", "shape": "hx", "D_m": 0.69, "L_m": 7.3, "basis": "Q 3598 kW, HP steam 254 C, LMTD 40 K, U 500 -> 181 m2", "source": "simulation (Heater)", "x_m": 14.3, "y_m": -6.6, "z_m": 0.8, "rot_deg": 0, "stack_on": ""}, {"tag": "R-201", "service": "DME reactor (fixed bed)", "shape": "vcol", "D_m": 0.5, "L_m": 5.0, "basis": "D and L as entered in RPlug R-201", "source": "simulation (RPlug inputs)", "x_m": 24.7, "y_m": 6.8, "z_m": 1.5, "rot_deg": 0, "stack_on": ""}, {"tag": "E-203", "service": "Reactor effluent cooler", "shape": "hx", "D_m": 0.43, "L_m": 7.3, "basis": "Q 2871 kW, CW, LMTD 137 K, U 400 -> 52 m2", "source": "simulation (Heater)", "x_m": 27.6, "y_m": -6.5, "z_m": 0.8, "rot_deg": 0, "stack_on": ""}, {"tag": "T-201", "service": "DME column", "shape": "vcol", "D_m": 0.8, "L_m": 23.2, "basis": "D from stage 2 vapour, rhoV=17.8 kg/m3 (ideal gas), u_flood=0.50 m/s; 32 actual trays @ 0.6 m, eff 0.7", "source": "simulation (RadFrac)", "n_theo": 22, "n_act": 32, "x_m": 38.1, "y_m": 6.9, "z_m": 3.0, "rot_deg": 0, "stack_on": ""}, {"tag": "E-204", "service": "T-201 overhead condenser", "shape": "hx", "D_m": 0.58, "L_m": 7.3, "basis": "Q 1053 kW, CW, LMTD 11 K, U 800 -> 118 m2", "source": "implied by RadFrac (tag assumed)", "stack_on": "V-202", "x_m": 50.3, "y_m": 6.8, "z_m": 5.6, "rot_deg": 0}, {"tag": "E-205", "service": "T-201 reboiler (kettle/thermosiphon)", "shape": "hx", "D_m": 0.38, "L_m": 3.64, "basis": "Q 433 kW, MP steam 184 C, dT 30 K, U 1000 -> 14 m2", "source": "implied by RadFrac (tag assumed)", "x_m": 43.9, "y_m": 6.5, "z_m": 0.8, "rot_deg": 0, "stack_on": ""}, {"tag": "V-202", "service": "T-201 reflux drum", "shape": "hdrum", "D_m": 1.1, "L_m": 3.3, "basis": "5 min of 16.2 m3/h condensate, half full -> 2.7 m3", "source": "implied by RadFrac (tag assumed)", "x_m": 50.3, "y_m": 6.8, "z_m": 3.0, "rot_deg": 0, "stack_on": ""}, {"tag": "P-202A", "service": "T-201 reflux pump", "shape": "box", "D_m": null, "L_m": null, "basis": "reflux + distillate 10050 kg/h", "source": "implied by RadFrac (tag assumed)", "x_m": 37.7, "y_m": -2.0, "z_m": 0.0, "rot_deg": 0, "stack_on": ""}, {"tag": "P-202B", "service": "T-201 reflux pump", "shape": "box", "D_m": null, "L_m": null, "basis": "reflux + distillate 10050 kg/h", "source": "implied by RadFrac (tag assumed)", "x_m": 40.1, "y_m": -2.0, "z_m": 0.0, "rot_deg": 0, "stack_on": ""}, {"tag": "T-202", "service": "Methanol column", "shape": "vcol", "D_m": 1.0, "L_m": 26.8, "basis": "D from stage 2 vapour, rhoV=7.1 kg/m3 (ideal gas), u_flood=0.82 m/s; 38 actual trays @ 0.6 m, eff 0.7", "source": "simulation (RadFrac)", "n_theo": 26, "n_act": 38, "x_m": 59.0, "y_m": 7.0, "z_m": 3.0, "rot_deg": 0, "stack_on": ""}, {"tag": "E-206", "service": "T-202 overhead condenser", "shape": "hx", "D_m": 0.37, "L_m": 7.3, "basis": "Q 2504 kW, CW, LMTD 90 K, U 800 -> 35 m2", "source": "implied by RadFrac (tag assumed)", "stack_on": "V-203", "x_m": 74.9, "y_m": 6.8, "z_m": 5.6, "rot_deg": 0}, {"tag": "E-207", "service": "T-202 reboiler (kettle/thermosiphon)", "shape": "hx", "D_m": 0.62, "L_m": 7.3, "basis": "Q 2450 kW, MP steam 184 C, dT 17 K, U 1000 -> 141 m2", "source": "implied by RadFrac (tag assumed)", "x_m": 66.6, "y_m": 6.6, "z_m": 0.8, "rot_deg": 0, "stack_on": ""}, {"tag": "V-203", "service": "T-202 reflux drum", "shape": "hdrum", "D_m": 1.1, "L_m": 3.3, "basis": "5 min of 14.3 m3/h condensate, half full -> 2.38 m3", "source": "implied by RadFrac (tag assumed)", "x_m": 74.9, "y_m": 6.8, "z_m": 3.0, "rot_deg": 0, "stack_on": ""}, {"tag": "P-203A", "service": "T-202 reflux pump", "shape": "box", "D_m": null, "L_m": null, "basis": "reflux + distillate 9445 kg/h", "source": "implied by RadFrac (tag assumed)", "x_m": 58.4, "y_m": -2.0, "z_m": 0.0, "rot_deg": 0, "stack_on": ""}, {"tag": "P-203B", "service": "T-202 reflux pump", "shape": "box", "D_m": null, "L_m": null, "basis": "reflux + distillate 9445 kg/h", "source": "implied by RadFrac (tag assumed)", "x_m": 60.8, "y_m": -2.0, "z_m": 0.0, "rot_deg": 0, "stack_on": ""}, {"tag": "E-208", "service": "Wastewater cooler", "shape": "hx", "D_m": 0.35, "L_m": 3.64, "basis": "Q 345 kW, CW, LMTD 58 K, U 500 -> 12 m2", "source": "simulation (Heater)", "x_m": 84.4, "y_m": -6.5, "z_m": 0.8, "rot_deg": 0, "stack_on": ""}], "connections": [["V-201", "P-201A", "1B"], ["P-201A", "E-202", "2"], ["E-202", "E-201", "4"], ["E-201", "R-201", "5"], ["R-201", "E-202", "6A"], ["E-202", "E-203", "6B/7"], ["E-203", "T-201", "8/9"], ["T-201", "E-204", "ovhd"], ["E-204", "V-202", "cond."], ["V-202", "P-202A", "refl."], ["P-202A", "T-201", "reflux"], ["T-201", "E-205", "reb."], ["T-201", "T-202", "11/12"], ["T-202", "E-206", "ovhd"], ["E-206", "V-203", "cond."], ["V-203", "P-203A", "refl."], ["P-203A", "T-202", "reflux"], ["T-202", "E-207", "reb."], ["P-203A", "V-201", "13 recycle"], ["T-202", "E-208", "14"]], "assumptions": {"tray_spacing_m": 0.6, "overall_tray_eff": 0.7, "col_top_space_m": 1.5, "col_bottom_sump_m": 2.5, "col_skirt_m": 3.0, "souders_brown_C_ms": 0.085, "pct_flood": 0.8, "downcomer_area_frac": 0.12, "drum_holdup_min_feed": 10.0, "drum_holdup_min_reflux": 5.0, "drum_fill_frac": 0.5, "drum_L_over_D": 3.0, "CW_in_C": 30.0, "CW_out_C": 40.0, "MP_steam_C": 184.0, "HP_steam_C": 254.0, "U_W_m2K": {"vaporiser": 500, "gas_cooler_condenser": 400, "condenser": 800, "reboiler": 1000, "liquid_cooler": 500}, "tube_OD_m": 0.01905, "tube_pitch_ratio": 1.25, "pump_skid_LxWxH_m": [1.8, 0.9, 1.0], "rack_width_m": 6.0, "rack_top_elev_m": 7.0, "rack_bent_spacing_m": 6.0, "clear_gap_m": 3.0}, "rack": {"x0": 0, "x1": 96.0, "width": 6.0, "elev": 7.0}, "battery_limits": {"feed MeOH (1)": "V-201", "DME product (10)": "P-202A", "wastewater (15)": "E-208"}};
+const ORIG = JSON.parse(JSON.stringify(DATA.equipment));
+const PUMP = [1.8, 0.9, 1.0];
+const COLORS = { vcol: 0x4d8cd9, hdrum: 0xf2a633, hx: 0x59bf73, box: 0xcc4d4d };
+const GAP_TARGET = DATA.assumptions.clear_gap_m;
+
+const view = document.getElementById("view");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0xf3f5f4);
+view.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const persp = new THREE.PerspectiveCamera(40, 1, 0.5, 2000);
+let ortho = new THREE.OrthographicCamera(-60, 60, 40, -40, 0.1, 2000);
+let camera = persp;
+const controls = new OrbitControls(camera, renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa5a8, 1.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4); sun.position.set(-40, 80, 60); scene.add(sun);
+
+// plant coords (x east, y north, z up) -> three (x, z, -y)
+const P = (x, y, z) => new THREE.Vector3(x, z, -y);
+const rk = DATA.rack;
+const cx = (rk.x0 + rk.x1) / 2;
+
+// ground grid: 6 m major (matches rack bents), 1 m minor
+const minor = new THREE.GridHelper(200, 200, 0xdfe5e3, 0xe6ebe9); minor.position.set(cx, 0, 0); scene.add(minor);
+const major = new THREE.GridHelper(204, 34, 0xb9c4c1, 0xc7d0ce); major.position.set(cx, 0.01, 0); scene.add(major);
+
+// pipe rack
+const rackMat = new THREE.MeshLambertMaterial({ color: 0x8c8c8c });
+for (let x = rk.x0; x <= rk.x1 + 1e-6; x += DATA.assumptions.rack_bent_spacing_m) {
+  for (const y of [-rk.width / 2, rk.width / 2]) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.3, rk.elev, 0.3), rackMat); m.position.copy(P(x, y, rk.elev / 2)); scene.add(m);
+  }
+  for (const z of [rk.elev - 2, rk.elev]) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, rk.width), rackMat); b.position.copy(P(x, 0, z)); scene.add(b);
+  }
+}
+for (const z of [rk.elev - 2, rk.elev]) for (const y of [-rk.width / 2, rk.width / 2]) {
+  const L = rk.x1 - rk.x0; const s = new THREE.Mesh(new THREE.BoxGeometry(L, 0.25, 0.25), rackMat); s.position.copy(P(rk.x0 + L / 2, y, z)); scene.add(s);
+}
+
+// equipment
+const groups = {}; const tags = {};
+function build(e) {
+  if (groups[e.tag]) { scene.remove(groups[e.tag]); groups[e.tag].traverse(o => { if (o.isMesh) o.geometry.dispose(); }); }
+  const g = new THREE.Group(); g.userData.tag = e.tag;
+  const mat = new THREE.MeshLambertMaterial({ color: COLORS[e.shape] });
+  const D = +e.D_m, L = +e.L_m, z = +e.z_m;
+  if (e.shape === "vcol") {
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(D / 2, D / 2, L, 32), mat); c.position.y = z + L / 2; g.add(c);
+    const h = new THREE.Mesh(new THREE.SphereGeometry(D / 2, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat); h.position.y = z + L; g.add(h);
+    if (z > 0) { const s = new THREE.Mesh(new THREE.CylinderGeometry(D / 2, D / 2, z, 24), new THREE.MeshLambertMaterial({ color: 0x6f7a7d })); s.position.y = z / 2; g.add(s); }
+  } else if (e.shape === "hdrum" || e.shape === "hx") {
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(D / 2, D / 2, L, 28), mat); c.rotation.z = Math.PI / 2; c.position.y = z + D / 2; g.add(c);
+    for (const s of [-1, 1]) { const end = new THREE.Mesh(new THREE.SphereGeometry(D / 2, 20, 10), mat); end.scale.set(0.35, 1, 1); end.position.set(s * L / 2, z + D / 2, 0); g.add(end); }
+    for (const s of [-0.3, 0.3]) { const sd = new THREE.Mesh(new THREE.BoxGeometry(0.3, z + D / 2, D * 0.8), new THREE.MeshLambertMaterial({ color: 0x6f7a7d })); sd.position.set(s * L, (z + D / 2) / 2, 0); g.add(sd); }
+  } else {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(PUMP[1], PUMP[2], PUMP[0]), mat); b.position.y = PUMP[2] / 2; g.add(b);
+  }
+  g.traverse(o => { if (o.isMesh) o.userData.tag = e.tag; });
+  scene.add(g); groups[e.tag] = g;
+  if (!tags[e.tag]) { const t = document.createElement("div"); t.className = "tag" + (e.source.startsWith("implied") ? " implied" : ""); t.textContent = e.tag; view.appendChild(t); tags[e.tag] = t; }
+  g.userData.builtZ = +e.z_m;
+}
+DATA.equipment.forEach(build);
+const E = Object.fromEntries(DATA.equipment.map(e => [e.tag, e]));
+
+// scale person: 1.75 m tall, draggable, not part of the equipment list
+const MAN = { tag: "PERSON", x_m: -3, y_m: -5, z_m: 0, rot_deg: 0 };
+(function () {
+  const g = new THREE.Group(); g.userData.tag = "PERSON";
+  const skin = new THREE.MeshLambertMaterial({ color: 0xe0b48a });
+  const suit = new THREE.MeshLambertMaterial({ color: 0xff7a00 });   // orange coverall
+  const dark = new THREE.MeshLambertMaterial({ color: 0x2b3438 });
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.userData.tag = "PERSON"; g.add(m); return m; };
+  add(new THREE.BoxGeometry(0.16, 0.85, 0.2), dark, 0, 0.425, -0.11);     // legs
+  add(new THREE.BoxGeometry(0.16, 0.85, 0.2), dark, 0, 0.425, 0.11);
+  add(new THREE.BoxGeometry(0.26, 0.62, 0.46), suit, 0, 1.16, 0);          // torso
+  add(new THREE.BoxGeometry(0.12, 0.6, 0.12), suit, 0, 1.15, -0.3);       // arms
+  add(new THREE.BoxGeometry(0.12, 0.6, 0.12), suit, 0, 1.15, 0.3);
+  add(new THREE.SphereGeometry(0.11, 16, 12), skin, 0, 1.6, 0);            // head, top at 1.71
+  add(new THREE.CylinderGeometry(0.15, 0.15, 0.06, 16), new THREE.MeshLambertMaterial({ color: 0xffffff }), 0, 1.74, 0); // hard hat brim
+  add(new THREE.SphereGeometry(0.13, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xffffff }), 0, 1.72, 0);
+  scene.add(g); groups.PERSON = g;
+  const t = document.createElement("div"); t.className = "tag person"; t.textContent = "person 1.75 m"; view.appendChild(t); tags.PERSON = t;
+})();
+const obj = t => t === "PERSON" ? MAN : E[t];
+
+function place(e) {
+  if (e.tag !== "PERSON" && groups[e.tag].userData.builtZ !== +e.z_m) { build(e); if (sel === e.tag) select(e.tag); }
+  const g = groups[e.tag]; g.position.copy(P(+e.x_m, +e.y_m, e.tag === "PERSON" ? +e.z_m : 0)); g.rotation.y = THREE.MathUtils.degToRad(+e.rot_deg); }
+
+// plan footprint (axis-aligned for 0/90/180/270 deg)
+function fp(e) {
+  let a, b; // a along local x, b along local y
+  if (e.shape === "vcol") { a = b = +e.D_m; }
+  else if (e.shape === "box") { a = PUMP[1]; b = PUMP[0]; }
+  else { a = +e.L_m + 0.35 * +e.D_m; b = +e.D_m; }
+  if (Math.round(+e.rot_deg / 90) % 2) [a, b] = [b, a];
+  // vertical extent: columns run from grade (skirt) to top; pumps sit at z; horizontal
+  // vessels/exchangers occupy z..z+D (their supports/structure are not counted)
+  const z = +e.z_m;
+  const z0 = e.shape === "vcol" ? 0 : z, z1 = e.shape === "vcol" ? z + +e.L_m : e.shape === "box" ? z + PUMP[2] : z + +e.D_m;
+  return { x0: +e.x_m - a / 2, x1: +e.x_m + a / 2, y0: +e.y_m - b / 2, y1: +e.y_m + b / 2, z0, z1 };
+}
+function gap(p, q) {
+  const dx = Math.max(q.x0 - p.x1, p.x0 - q.x1, 0), dy = Math.max(q.y0 - p.y1, p.y0 - q.y1, 0), dz = Math.max(q.z0 - p.z1, p.z0 - q.z1, 0);
+  const ov = q.x0 < p.x1 && p.x0 < q.x1 && q.y0 < p.y1 && p.y0 < q.y1 && q.z0 < p.z1 && p.z0 < q.z1;
+  return ov ? -1 : Math.hypot(dx, dy, dz);
+}
+const stacked = (a, b) => (E[a].stack_on === b) || (E[b].stack_on === a);
+
+// connection lines routed via the rack
+const lineMat = new THREE.LineBasicMaterial({ color: 0x1f6f8b, transparent: true, opacity: 0.55 });
+const hiMat = new THREE.LineBasicMaterial({ color: 0xd9480f });
+const lines = DATA.connections.map(([a, b, s], i) => {
+  const l = new THREE.Line(new THREE.BufferGeometry(), lineMat); l.userData = { a, b, s, tier: rk.elev - (i % 2 ? 2 : 0) - 0.3 }; scene.add(l); return l;
+});
+function nozzle(e) {
+  const z = +e.z_m;
+  if (e.shape === "vcol") return z + +e.L_m * 0.5;
+  if (e.shape === "box") return PUMP[2];
+  return z + +e.D_m / 2;
+}
+function route() {
+  for (const l of lines) {
+    const A = E[l.userData.a], B = E[l.userData.b], t = l.userData.tier;
+    const pts = [P(+A.x_m, +A.y_m, nozzle(A)), P(+A.x_m, +A.y_m, t), P(+A.x_m, 0, t), P(+B.x_m, 0, t), P(+B.x_m, +B.y_m, t), P(+B.x_m, +B.y_m, nozzle(B))];
+    l.geometry.setFromPoints(pts);
+    l.material = (sel && (l.userData.a === sel || l.userData.b === sel)) ? hiMat : lineMat;
+  }
+}
+
+// ---------- panel ----------
+let sel = null;
+const fmt = v => (v === "" || v == null) ? "—" : (+v).toFixed(1);
+function summary() {
+  const all = DATA.equipment.map(fp);
+  let x0 = Math.min(...all.map(f => f.x0), rk.x0), x1 = Math.max(...all.map(f => f.x1), rk.x1);
+  let y0 = Math.min(...all.map(f => f.y0), -rk.width / 2), y1 = Math.max(...all.map(f => f.y1), rk.width / 2);
+  let clash = 0;
+  for (let i = 0; i < DATA.equipment.length; i++) for (let j = i + 1; j < DATA.equipment.length; j++) {
+    const a = DATA.equipment[i], b = DATA.equipment[j];
+    if (gap(all[i], all[j]) < 0) clash++;
+  }
+  document.getElementById("summary").innerHTML =
+    `<span class="chip">${DATA.equipment.length} items</span>` +
+    `<span class="chip">plot ${(x1 - x0).toFixed(0)} × ${(y1 - y0).toFixed(0)} m</span>` +
+    `<span class="chip">rack ${rk.x1 - rk.x0} m × ${rk.width} m</span>` +
+    `<span class="chip ${clash ? "bad" : "ok"}">${clash ? clash + " overlap" + (clash > 1 ? "s" : "") : "no overlaps"}</span>`;
+}
+function showSel() {
+  const box = document.getElementById("sel");
+  document.querySelectorAll("tr.row").forEach(r => r.classList.toggle("sel", r.dataset.tag === sel));
+  Object.entries(tags).forEach(([t, el]) => el.classList.toggle("sel", t === sel));
+  if (!sel) { box.innerHTML = `<p class="note">Click an item in the model or the list below.</p>`; return; }
+  if (sel === "PERSON") { box.innerHTML = `<dl><dt>Object</dt><dd>Scale person, 1.75 m tall with hard hat</dd><dt>Position</dt><dd class="mono">x ${MAN.x_m.toFixed(1)}, y ${MAN.y_m.toFixed(1)} m</dd><dt>Elevation</dt><dd><span class="zed"><button type="button" class="zb" data-dz="-0.5" aria-label="Lower 0.5 m">▼</button><input id="zin" type="number" step="0.5" min="0" value="${(+MAN.z_m).toFixed(1)}" aria-label="Elevation z in metres"> m<button type="button" class="zb" data-dz="0.5" aria-label="Raise 0.5 m">▲</button></span></dd></dl><p class="note">For size comparison only. Not part of the layout, the overlap check or the CSV export.</p>`; wireZ(); return; }
+  const e = E[sel], f = fp(e);
+  const gaps = DATA.equipment.filter(o => o.tag !== sel)
+    .map(o => ({ t: o.tag, g: gap(f, fp(o)) })).sort((a, b) => a.g - b.g).slice(0, 3);
+  box.innerHTML = `<dl>
+    <dt>Tag</dt><dd class="mono">${e.tag}</dd>
+    <dt>Service</dt><dd>${e.service}</dd>
+    <dt>Size</dt><dd>${e.shape === "box" ? "skid 1.8 × 0.9 × 1.0 m" : `D ${fmt(e.D_m)} m × ${e.shape === "vcol" ? "H" : "L"} ${fmt(e.L_m)} m`}</dd>
+    <dt>Position</dt><dd class="mono">x ${fmt(e.x_m)}, y ${fmt(e.y_m)}, z ${fmt(e.z_m)} m, ${e.rot_deg}°</dd>
+    <dt>Elevation</dt><dd><span class="zed"><button type="button" class="zb" data-dz="-0.5" aria-label="Lower 0.5 m">▼</button><input id="zin" type="number" step="0.5" min="0" value="${(+e.z_m).toFixed(1)}" aria-label="Elevation z in metres"> m<button type="button" class="zb" data-dz="0.5" aria-label="Raise 0.5 m">▲</button></span></dd>
+    <dt>z means</dt><dd>${e.shape === "vcol" ? "bottom of shell (skirt fills below)" : e.shape === "box" ? "underside of skid" : "bottom of shell"}</dd>
+    <dt>Size basis</dt><dd>${e.basis}</dd>
+    <dt>Source</dt><dd>${e.source}</dd></dl>
+    <h2 style="margin-top:8px">Nearest clear distance (3D)</h2>` +
+    gaps.map(g => `<div class="gap"><span>${g.t}</span><span class="v ${g.g < 0 ? "bad" : g.g < GAP_TARGET ? "warn" : ""}">${g.g < 0 ? "OVERLAP" : g.g.toFixed(1) + " m"}</span></div>`).join("") +
+    `<p class="note">Amber = below the ${GAP_TARGET} m placeholder gap. Replace with your spacing standard.</p>`;
+  wireZ();
+}
+function setZ(t, z) {
+  const e = obj(t); z = Math.max(0, Math.round(z * 10) / 10);
+  const dz = z - +e.z_m; if (!dz) return;
+  e.z_m = z;
+  if (t !== "PERSON") DATA.equipment.filter(o => o.stack_on === t).forEach(o => { o.z_m = Math.round((+o.z_m + dz) * 10) / 10; });
+  refresh();
+}
+function wireZ() {
+  const zin = document.getElementById("zin"); if (!zin) return;
+  zin.onchange = () => { const v = parseFloat(zin.value); if (!isNaN(v)) setZ(sel, v); };
+  document.querySelectorAll(".zb").forEach(b => b.onclick = () => setZ(sel, +obj(sel).z_m + +b.dataset.dz));
+}
+const list = document.getElementById("list");
+DATA.equipment.forEach(e => {
+  const tr = document.createElement("tr"); tr.className = "row"; tr.dataset.tag = e.tag; tr.tabIndex = 0;
+  tr.innerHTML = `<td class="mono">${e.tag}</td><td>${e.service}</td><td style="white-space:nowrap">${e.shape === "box" ? "skid" : fmt(e.D_m) + " × " + fmt(e.L_m)}</td>`;
+  tr.onclick = () => select(e.tag); tr.onkeydown = ev => { if (ev.key === "Enter") select(e.tag); };
+  list.appendChild(tr);
+});
+function select(t) { sel = t; showSel(); route(); }
+function refresh() { DATA.equipment.forEach(place); place(MAN); route(); summary(); showSel(); }
+
+// ---------- interaction ----------
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(), ground = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+let drag = null;
+function pick(ev) {
+  const r = renderer.domElement.getBoundingClientRect();
+  mouse.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(mouse, camera);
+}
+renderer.domElement.addEventListener("pointerdown", ev => {
+  if (ev.button !== 0) return;
+  pick(ev);
+  const hit = ray.intersectObjects(Object.values(groups), true)[0];
+  if (!hit) return;
+  const t = hit.object.userData.tag; select(t);
+  const gp = new THREE.Vector3(); ray.ray.intersectPlane(ground, gp);
+  if (ev.shiftKey) {
+    // vertical drag: plane through the item's axis, facing the camera
+    const n = new THREE.Vector3(); camera.getWorldDirection(n); n.y = 0;
+    if (n.lengthSq() < 1e-6) return;            // looking straight down (plan view): use the buttons instead
+    n.normalize();
+    const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, P(+obj(t).x_m, +obj(t).y_m, 0));
+    const hp = new THREE.Vector3(); if (!ray.ray.intersectPlane(plane, hp)) return;
+    drag = { t, vertical: true, plane, dz: +obj(t).z_m - hp.y };
+  } else {
+    drag = { t, dx: +obj(t).x_m - gp.x, dy: +obj(t).y_m + gp.z };
+  }
+  controls.enabled = false; renderer.domElement.setPointerCapture(ev.pointerId);
+});
+renderer.domElement.addEventListener("pointermove", ev => {
+  if (!drag) return;
+  pick(ev);
+  if (drag.vertical) {
+    const hp = new THREE.Vector3(); if (!ray.ray.intersectPlane(drag.plane, hp)) return;
+    const st = drag.t === "PERSON" ? 10 : 2;
+    setZ(drag.t, Math.round((hp.y + drag.dz) * st) / st);
+    return;
+  }
+  const gp = new THREE.Vector3(); if (!ray.ray.intersectPlane(ground, gp)) return;
+  const e = obj(drag.t);
+  const snap = drag.t === "PERSON" ? 10 : 2;
+  const nx = Math.round((gp.x + drag.dx) * snap) / snap, ny = Math.round((-gp.z + drag.dy) * snap) / snap;
+  const mx = nx - e.x_m, my = ny - e.y_m;
+  e.x_m = nx; e.y_m = ny;
+  DATA.equipment.filter(o => o.stack_on === e.tag).forEach(o => { o.x_m = +o.x_m + mx; o.y_m = +o.y_m + my; });
+  refresh();
+});
+const endDrag = () => { drag = null; controls.enabled = true; };
+renderer.domElement.addEventListener("pointerup", endDrag);
+renderer.domElement.addEventListener("pointercancel", endDrag);
+function rotate() { if (!sel || sel === "PERSON") return; const e = E[sel]; e.rot_deg = (+e.rot_deg + 90) % 360; refresh(); }
+document.getElementById("brot").onclick = rotate;
+document.getElementById("bup").onclick = () => { if (sel) setZ(sel, +obj(sel).z_m + 0.5); };
+document.getElementById("bdn").onclick = () => { if (sel) setZ(sel, +obj(sel).z_m - 0.5); };
+addEventListener("keydown", ev => {
+  if (!sel || ev.target.tagName === "INPUT" || ev.target.tagName === "TEXTAREA") return;
+  if (ev.key === "PageUp") { ev.preventDefault(); setZ(sel, +obj(sel).z_m + 0.5); }
+  if (ev.key === "PageDown") { ev.preventDefault(); setZ(sel, +obj(sel).z_m - 0.5); }
+});
+addEventListener("keydown", ev => { if ((ev.key === "r" || ev.key === "R") && ev.target.tagName !== "TEXTAREA" && ev.target.tagName !== "INPUT") rotate(); });
+document.getElementById("breset").onclick = () => { DATA.equipment.forEach((e, i) => Object.assign(e, ORIG[i])); MAN.x_m = -3; MAN.y_m = -5; MAN.z_m = 0; refresh(); };
+
+function csvText() {
+  return "tag,x_m,y_m,z_m,rot_deg\n" + DATA.equipment.map(e => [e.tag, (+e.x_m).toFixed(1), (+e.y_m).toFixed(1), (+e.z_m).toFixed(1), e.rot_deg].join(",")).join("\n");
+}
+document.getElementById("bcopy").onclick = async () => {
+  const ta = document.getElementById("csvout"); ta.value = csvText(); ta.style.display = "block";
+  try { await navigator.clipboard.writeText(ta.value); document.getElementById("bcopy").textContent = "Copied. Paste into equipment_list.csv"; }
+  catch { ta.select(); document.getElementById("bcopy").textContent = "Select the text below and copy it"; }
+};
+
+// ---------- views ----------
+function setView(plan) {
+  document.getElementById("bplan").classList.toggle("on", plan);
+  document.getElementById("b3d").classList.toggle("on", !plan);
+  camera = plan ? ortho : persp;
+  controls.object = camera;
+  if (plan) { camera.position.set(cx, 200, 0.001); controls.enableRotate = false; }
+  else { camera.position.set(cx - 55, 70, 100); controls.enableRotate = true; }
+  controls.target.set(cx, 0, 0); camera.lookAt(controls.target); controls.update(); resize();
+}
+document.getElementById("b3d").onclick = () => setView(false);
+document.getElementById("bplan").onclick = () => setView(true);
+function resize() {
+  const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h);
+  persp.aspect = w / h; persp.updateProjectionMatrix();
+  const half = (rk.x1 - rk.x0) / 2 + 8; ortho.left = -half; ortho.right = half; ortho.top = half * h / w; ortho.bottom = -half * h / w; ortho.updateProjectionMatrix();
+}
+addEventListener("resize", resize);
+
+const v = new THREE.Vector3();
+function labels() {
+  const w = view.clientWidth, h = view.clientHeight;
+  for (const e of DATA.equipment) {
+    const top = e.shape === "vcol" ? +e.z_m + +e.L_m + 1 : e.shape === "box" ? 1.4 : +e.z_m + +e.D_m + 0.6;
+    v.copy(P(+e.x_m, +e.y_m, top)).project(camera);
+    const el = tags[e.tag];
+    el.style.display = v.z < 1 ? "block" : "none";
+    el.style.left = ((v.x + 1) / 2 * w) + "px"; el.style.top = ((1 - v.y) / 2 * h) + "px";
+  }
+  v.copy(P(MAN.x_m, MAN.y_m, +MAN.z_m + 2.1)).project(camera);
+  tags.PERSON.style.display = v.z < 1 ? "block" : "none";
+  tags.PERSON.style.left = ((v.x + 1) / 2 * w) + "px"; tags.PERSON.style.top = ((1 - v.y) / 2 * h) + "px";
+}
+renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); labels(); });
+setView(false); refresh();
+</script>
+</body>
+</html>
